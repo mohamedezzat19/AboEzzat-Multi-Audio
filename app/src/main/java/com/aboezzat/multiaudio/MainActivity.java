@@ -319,6 +319,7 @@ public class MainActivity extends Activity {
         try { if (scanner != null && scanCallback != null) scanner.stopScan(scanCallback); } catch (Exception ignored) {}
         try { if (adapter != null && adapter.isDiscovering()) adapter.cancelDiscovery(); } catch (Exception ignored) {}
         try { if (receiverRegistered) unregisterReceiver(classicReceiver); } catch (Exception ignored) {}
+        try { if (sinilink != null) sinilink.disconnect(); } catch (Exception ignored) {}
     }
 
     private void header(LinearLayout root, String s) {
