@@ -97,6 +97,26 @@ public class MainActivity extends Activity {
         TextView footer = label("Prototype 0.1 • اكتشاف الأجهزة لا يعني أن بث 3 سماعات مدعوم.", 12, false);
         footer.setTextColor(muted); panel(root, footer);
         updateStatus();
+        loadPairedDevices();
+    }
+
+    // Show already-paired devices immediately; discovery alone may not return
+    // devices that are currently connected or paired.
+    private void loadPairedDevices() {
+        if (adapter == null) return;
+        if (Build.VERSION.SDK_INT >= 31 &&
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        try {
+            for (BluetoothDevice d : adapter.getBondedDevices()) {
+                if (d != null) devices.put(d.getAddress(), d);
+            }
+            renderDevices();
+            if (!devices.isEmpty()) status.setText("تم عرض الأجهزة المقترنة. اضغط بحث لتحديث القائمة.");
+        } catch (SecurityException e) {
+            status.setText("اسمح بصلاحية Bluetooth لعرض الأجهزة المقترنة");
+        }
     }
 
     private void startScan() {
@@ -106,7 +126,7 @@ public class MainActivity extends Activity {
             if (!adapter.isEnabled()) {
                 startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); return;
             }
-            devices.clear(); renderDevices();
+            loadPairedDevices();
             status.setText("جارٍ البحث عن أجهزة Bluetooth…");
             scanner = adapter.getBluetoothLeScanner();
             if (scanner != null) {
