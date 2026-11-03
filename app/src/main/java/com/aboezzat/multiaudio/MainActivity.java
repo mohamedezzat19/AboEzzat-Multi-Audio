@@ -73,7 +73,7 @@ public class MainActivity extends Activity {
         scanButton.setOnClickListener(v -> { if (scanning) stopScan("تم إيقاف البحث."); else startScan(); });
         Button settings = button("إعدادات Bluetooth");
         settings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
-        actions.addView(scan, weight()); actions.addView(settings, weight()); panel(root, actions);
+        actions.addView(scanButton, weight()); actions.addView(settings, weight()); panel(root, actions);
 
         header(root, "الأجهزة والسماعات");
         devicesBox = new LinearLayout(this); devicesBox.setOrientation(LinearLayout.VERTICAL);
@@ -180,7 +180,8 @@ public class MainActivity extends Activity {
 
     private void stopScan(String message) {
         scanHandler.removeCallbacks(scanTimeout);
-        stopScan(null);
+        try { if (scanner != null && scanCallback != null) scanner.stopScan(scanCallback); } catch (Exception ignored) {}
+        try { if (adapter != null && adapter.isDiscovering()) adapter.cancelDiscovery(); } catch (Exception ignored) {}
         scanning = false;
         if (scanButton != null) scanButton.setText("بحث عن أجهزة");
         if (message != null && status != null) status.setText(message);
