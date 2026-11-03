@@ -247,8 +247,9 @@ public class MainActivity extends Activity {
     private void showEqMenu() {
         String[] modes = {"NORMAL", "ROCK", "POP", "CLASSIC", "JAZZ", "COUNTRY"};
         new AlertDialog.Builder(this).setTitle("EQ • وضع الصوت")
-            .setItems(modes, (dialog, which) ->
-                if(sinilink!=null) sinilink.eq(modes[which])
+            .setItems(modes, (dialog, which) -> {
+                if(sinilink!=null) sinilink.eq(modes[which]);
+            })
             .setNegativeButton("إلغاء", null).show();
     }
 
