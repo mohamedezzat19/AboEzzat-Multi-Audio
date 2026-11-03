@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
     private boolean receiverRegistered;
     private boolean scanning;
     private Button scanButton;
+    private SinilinkBleController sinilink;
+    private BluetoothDevice selectedSpeaker;
     private final Handler scanHandler = new Handler(Looper.getMainLooper());
     private final Runnable scanTimeout = () -> stopScan("انتهى البحث. الأجهزة المقترنة تظل ظاهرة.");
 
@@ -61,6 +63,7 @@ public class MainActivity extends Activity {
         root.setPadding(dp(18), dp(24), dp(18), dp(28));
         scroll.addView(root);
         setContentView(scroll);
+        sinilink = new SinilinkBleController(this, message -> { if(status!=null) status.setText(message); });
 
         root.addView(label("AboEzzat Multi Audio", 26, true));
         TextView sub = label("Bluetooth • Equalizer • Audio Sources", 13, false);
@@ -107,7 +110,7 @@ public class MainActivity extends Activity {
         LinearLayout playback = row();
         for (String action : new String[]{"كتم", "السابق", "تشغيل / إيقاف", "التالي"}) {
             Button b = button(action);
-            b.setOnClickListener(v -> toast("أمر " + action + " يحتاج اتصال BLE فعلي بالسماعة."));
+            b.setOnClickListener(v -> { if(sinilink==null) return; if("كتم".equals(action)) sinilink.volume(0); else if("السابق".equals(action)) sinilink.previous(); else if("تشغيل / إيقاف".equals(action)) sinilink.playPause(); else if("التالي".equals(action)) sinilink.next(); });
             playback.addView(b, weight());
         }
         panel(root, playback);
@@ -224,7 +227,7 @@ public class MainActivity extends Activity {
             TextView nameView = label(name + "\n" + d.getAddress(), 12, true);
             item.addView(nameView, new LinearLayout.LayoutParams(0, -2, 1));
             Button manage = button("إدارة");
-            manage.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
+            manage.setOnClickListener(v -> { selectedSpeaker=d; if(sinilink!=null) sinilink.connect(d); });
             item.addView(manage); devicesBox.addView(item);
             View line = new View(this); line.setBackgroundColor(Color.rgb(55,62,75));
             devicesBox.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
@@ -236,7 +239,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Audio Switch")
             .setSingleChoiceItems(options, java.util.Arrays.asList(options).indexOf(selected),
                 (dialog, which) -> {
-                    toast("اختيار المصدر " + options[which] + " — ربط أمر Sinilink BLE قيد التنفيذ");
+                    if(sinilink!=null) sinilink.source(options[which]);
                     dialog.dismiss();
                 }).setNegativeButton("إلغاء", null).show();
     }
@@ -245,7 +248,7 @@ public class MainActivity extends Activity {
         String[] modes = {"NORMAL", "ROCK", "POP", "CLASSIC", "JAZZ", "COUNTRY"};
         new AlertDialog.Builder(this).setTitle("EQ • وضع الصوت")
             .setItems(modes, (dialog, which) ->
-                toast("اختيار EQ: " + modes[which] + " — ربط أمر BLE قيد التنفيذ"))
+                if(sinilink!=null) sinilink.eq(modes[which]))
             .setNegativeButton("إلغاء", null).show();
     }
 
@@ -256,7 +259,7 @@ public class MainActivity extends Activity {
         TextView prompt = label("نغمة التنبيه", 14, true);
         layout.addView(prompt);
         Button tone = button("تبديل نغمة التنبيه");
-        tone.setOnClickListener(v -> toast("أمر نغمة التنبيه يحتاج اتصال Sinilink BLE"));
+        tone.setOnClickListener(v -> { if(sinilink!=null) sinilink.promptTone(); });
         layout.addView(tone);
         TextView name = label("اسم السماعة وكلمة المرور", 14, true);
         name.setPadding(0, dp(12), 0, dp(4));
