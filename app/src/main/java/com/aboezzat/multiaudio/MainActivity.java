@@ -219,19 +219,37 @@ public class MainActivity extends Activity {
             TextView empty = label("لم تظهر أجهزة بعد. اضغط بحث عن أجهزة.", 13, false);
             empty.setTextColor(muted); devicesBox.addView(empty); return;
         }
-        for (BluetoothDevice d : devices.values()) {
-            String name = "Bluetooth Device";
-            try { if (d.getName() != null && !d.getName().isEmpty()) name = d.getName(); }
-            catch (SecurityException ignored) {}
+        java.util.List<BluetoothDevice> sorted = new java.util.ArrayList<>(devices.values());
+        // Keep the DH100 BLE control endpoint ahead of its separate audio endpoint.
+        java.util.Collections.sort(sorted, (a, b) -> {
+            String an = safeName(a).toUpperCase(java.util.Locale.ROOT);
+            String bn = safeName(b).toUpperCase(java.util.Locale.ROOT);
+            int ar = an.contains("XYV122UE") ? 0 : (an.contains("XINYI") || an.contains("ABOEZZAT1") ? 2 : 1);
+            int br = bn.contains("XYV122UE") ? 0 : (bn.contains("XINYI") || bn.contains("ABOEZZAT1") ? 2 : 1);
+            return Integer.compare(ar, br);
+        });
+        for (BluetoothDevice d : sorted) {
+            String name = safeName(d);
+            String upper = name.toUpperCase(java.util.Locale.ROOT);
+            boolean control = upper.contains("XYV122UE");
+            boolean audioEndpoint = upper.contains("XINYI") || upper.contains("ABOEZZAT1");
+            String hint = control ? "\nقناة التحكم DH100 (BLE)" :
+                    (audioEndpoint ? "\nجهاز صوت Bluetooth — ليس قناة التحكم" : "\nقد لا يكون جهاز Sinilink");
             LinearLayout item = row();
-            TextView nameView = label(name + "\n" + d.getAddress(), 12, true);
+            TextView nameView = label(name + hint + "\n" + d.getAddress(), 12, true);
             item.addView(nameView, new LinearLayout.LayoutParams(0, -2, 1));
-            Button manage = button("إدارة");
+            Button manage = button(control ? "اتصال DH100" : "فحص BLE");
             manage.setOnClickListener(v -> { selectedSpeaker=d; if(sinilink!=null) sinilink.connect(d); });
             item.addView(manage); devicesBox.addView(item);
             View line = new View(this); line.setBackgroundColor(Color.rgb(55,62,75));
             devicesBox.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
         }
+    }
+
+    private String safeName(BluetoothDevice d) {
+        try { if (d != null && d.getName() != null && !d.getName().trim().isEmpty()) return d.getName().trim(); }
+        catch (SecurityException ignored) {}
+        return "Bluetooth Device";
     }
 
     private void showSourceMenu(String selected) {
