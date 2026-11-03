@@ -16,6 +16,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -39,6 +41,10 @@ public class MainActivity extends Activity {
     private TextView status;
     private final Map<String, BluetoothDevice> devices = new LinkedHashMap<>();
     private boolean receiverRegistered;
+    private boolean scanning;
+    private Button scanButton;
+    private final Handler scanHandler = new Handler(Looper.getMainLooper());
+    private final Runnable scanTimeout = () -> stopScan("انتهى البحث. الأجهزة المقترنة تظل ظاهرة.");
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -63,8 +69,8 @@ public class MainActivity extends Activity {
         status.setTextColor(accent); panel(root, status);
 
         LinearLayout actions = row();
-        Button scan = button("بحث عن أجهزة");
-        scan.setOnClickListener(v -> startScan());
+        scanButton = button("بحث عن أجهزة");
+        scanButton.setOnClickListener(v -> { if (scanning) stopScan("تم إيقاف البحث."); else startScan(); });
         Button settings = button("إعدادات Bluetooth");
         settings.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)));
         actions.addView(scan, weight()); actions.addView(settings, weight()); panel(root, actions);
@@ -120,37 +126,64 @@ public class MainActivity extends Activity {
     }
 
     private void startScan() {
-        if (adapter == null) { toast("Bluetooth غير متاح"); return; }
-        if (!permissionsGranted()) { requestBtPermissions(); return; }
+        if (adapter == null) { status.setText("Bluetooth غير متاح على هذا الهاتف"); return; }
+        if (!permissionsGranted()) { status.setText("مطلوب إذن الأجهزة المجاورة؛ اضغط بحث ووافق على الإذن"); requestBtPermissions(); return; }
         try {
             if (!adapter.isEnabled()) {
-                startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)); return;
+                status.setText("Bluetooth متوقف. فعّله ثم اضغط بحث.");
+                startActivity(new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE));
+                return;
             }
+            stopScan(null);
             loadPairedDevices();
-            status.setText("جارٍ البحث عن أجهزة Bluetooth…");
+            scanning = true;
+            scanButton.setText("إيقاف البحث");
+            status.setText("جارٍ البحث لمدة 12 ثانية…");
+            scanHandler.removeCallbacks(scanTimeout);
+            scanHandler.postDelayed(scanTimeout, 12000);
+
+            IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+            if (!receiverRegistered) {
+                if (Build.VERSION.SDK_INT >= 33) registerReceiver(classicReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                else registerReceiver(classicReceiver, filter);
+                receiverRegistered = true;
+            }
+
             scanner = adapter.getBluetoothLeScanner();
             if (scanner != null) {
                 scanCallback = new ScanCallback() {
                     @Override public void onScanResult(int type, ScanResult result) {
                         BluetoothDevice d = result.getDevice();
-                        if (d != null) { devices.put(d.getAddress(), d); runOnUiThread(() -> renderDevices()); }
+                        if (d != null) {
+                            devices.put(d.getAddress(), d);
+                            runOnUiThread(() -> renderDevices());
+                        }
                     }
                     @Override public void onScanFailed(int error) {
-                        runOnUiThread(() -> status.setText("فشل BLE scan: " + error));
+                        runOnUiThread(() -> stopScan("فشل البحث عن Bluetooth (رمز " + error + "). جرّب إيقاف/تشغيل Bluetooth."));
                     }
                 };
                 scanner.startScan(scanCallback);
             }
-            IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
-            if (Build.VERSION.SDK_INT >= 33) registerReceiver(classicReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-            else registerReceiver(classicReceiver, filter);
-            receiverRegistered = true;
-            adapter.startDiscovery();
+
+            boolean classicStarted = adapter.startDiscovery();
+            if (!classicStarted && scanner == null) {
+                stopScan("الهاتف رفض بدء البحث. أوقف Bluetooth وشغّله ثم جرّب.");
+                return;
+            }
         } catch (SecurityException e) {
-            status.setText("صلاحيات Bluetooth غير كافية");
+            stopScan("إذن الأجهزة المجاورة غير كافٍ. راجع أذونات التطبيق.");
         } catch (Exception e) {
-            status.setText("تعذر البحث: " + e.getMessage());
+            stopScan("تعذر بدء البحث: " + e.getClass().getSimpleName());
         }
+    }
+
+    private void stopScan(String message) {
+        scanHandler.removeCallbacks(scanTimeout);
+        stopScan(null);
+        scanning = false;
+        if (scanButton != null) scanButton.setText("بحث عن أجهزة");
+        if (message != null && status != null) status.setText(message);
     }
 
     private final BroadcastReceiver classicReceiver = new BroadcastReceiver() {
