@@ -98,14 +98,16 @@ public final class SinilinkBleController {
         @Override public void onCharacteristicRead(BluetoothGatt g,BluetoothGattCharacteristic c,byte[] value,int st){
             if(st==BluetoothGatt.GATT_SUCCESS)status("استقبلنا رد التهيئة من DH100؛ جارٍ إنهاء المصافحة…");
             else status("أمر التهيئة أُرسل، لكن قراءة الرد لم تنجح: "+st);
+            // Match reference timing: 600 ms before command 1, then 1.2 s between commands.
             main.postDelayed(()->{
                 send(hex("7e051e00"));
-                main.postDelayed(()->send(hex("7e051f00")),700);
+                main.postDelayed(()->send(hex("7e051f00")),1200);
                 main.postDelayed(()->{
                     send(hex("7e052000"));
-                    main.postDelayed(()->{ready=true;status("تمت تهيئة قناة Sinilink. جرّب التحكم الآن.");},700);
-                },1400);
-            },500);
+                    // "ready" means sequence dispatched; it does not confirm speaker-side success.
+                    main.postDelayed(()->{ready=true;status("تم إرسال تسلسل تهيئة DH100. استجابة السماعة تحتاج اختبارًا فعليًا.");},1200);
+                },2400);
+            },600);
         }
     };
 
