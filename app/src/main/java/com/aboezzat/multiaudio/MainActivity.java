@@ -2,6 +2,7 @@ package com.aboezzat.multiaudio;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -79,26 +80,37 @@ public class MainActivity extends Activity {
         devicesBox = new LinearLayout(this); devicesBox.setOrientation(LinearLayout.VERTICAL);
         panel(root, devicesBox); renderDevices();
 
-        header(root, "المعادل الصوتي EQ");
-        TextView info = label("واجهة أولية للمعادل. سنربطه بمحرك تشغيل داخل التطبيق لاحقًا؛ لا يضمن تعديل صوت النظام كله.", 12, false);
-        info.setTextColor(muted); panel(root, info);
-        eq(root, "Bass"); eq(root, "Low"); eq(root, "Mid"); eq(root, "High"); eq(root, "Treble");
-
-        header(root, "مصادر الصوت");
-        LinearLayout sources = row();
-        for (String source : new String[]{"Bluetooth","AUX","USB","TF","الهاتف"}) {
+        header(root, "Audio Switch");
+        LinearLayout sourceRow = row();
+        for (String source : new String[]{"TF", "USB", "BT", "Audio Card", "AUX"}) {
             Button b = button(source);
-            b.setOnClickListener(v -> toast(source + ": يعتمد على دعم السماعة أو الجهاز"));
-            sources.addView(b, weight());
+            b.setOnClickListener(v -> showSourceMenu(source));
+            sourceRow.addView(b, weight());
         }
-        panel(root, sources);
+        panel(root, sourceRow);
 
-        header(root, "اسم البلوتوث والحماية");
-        Button rename = button("طلب تغيير اسم الهاتف إلى AboEzzat Audio");
-        rename.setOnClickListener(v -> renameBluetooth());
-        panel(root, rename);
-        TextView pin = label("PIN والاقتران يتحكم بهما Android والسماعة. التطبيق لا يستطيع فرض رقم سري عام على السماعات.", 12, false);
-        pin.setTextColor(muted); panel(root, pin);
+        header(root, "EQ");
+        LinearLayout eqRow = row();
+        Button eqButton = button("🎵 اختيار وضع الصوت");
+        eqButton.setOnClickListener(v -> showEqMenu());
+        eqRow.addView(eqButton, new LinearLayout.LayoutParams(-1, dp(48)));
+        panel(root, eqRow);
+
+        header(root, "Set");
+        LinearLayout settingsRow = row();
+        Button settingsButton = button("إعدادات السماعة");
+        settingsButton.setOnClickListener(v -> showSpeakerSettings());
+        settingsRow.addView(settingsButton, new LinearLayout.LayoutParams(-1, dp(48)));
+        panel(root, settingsRow);
+
+        header(root, "التحكم في التشغيل");
+        LinearLayout playback = row();
+        for (String action : new String[]{"كتم", "السابق", "تشغيل / إيقاف", "التالي"}) {
+            Button b = button(action);
+            b.setOnClickListener(v -> toast("أمر " + action + " يحتاج اتصال BLE فعلي بالسماعة."));
+            playback.addView(b, weight());
+        }
+        panel(root, playback);
 
         TextView footer = label("Prototype 0.1 • اكتشاف الأجهزة لا يعني أن بث 3 سماعات مدعوم.", 12, false);
         footer.setTextColor(muted); panel(root, footer);
@@ -217,6 +229,43 @@ public class MainActivity extends Activity {
             View line = new View(this); line.setBackgroundColor(Color.rgb(55,62,75));
             devicesBox.addView(line, new LinearLayout.LayoutParams(-1, dp(1)));
         }
+    }
+
+    private void showSourceMenu(String selected) {
+        String[] options = {"TF", "USB", "BT", "Audio Card", "AUX"};
+        new AlertDialog.Builder(this).setTitle("Audio Switch")
+            .setSingleChoiceItems(options, java.util.Arrays.asList(options).indexOf(selected),
+                (dialog, which) -> {
+                    toast("اختيار المصدر " + options[which] + " — ربط أمر Sinilink BLE قيد التنفيذ");
+                    dialog.dismiss();
+                }).setNegativeButton("إلغاء", null).show();
+    }
+
+    private void showEqMenu() {
+        String[] modes = {"NORMAL", "ROCK", "POP", "CLASSIC", "JAZZ", "COUNTRY"};
+        new AlertDialog.Builder(this).setTitle("EQ • وضع الصوت")
+            .setItems(modes, (dialog, which) ->
+                toast("اختيار EQ: " + modes[which] + " — ربط أمر BLE قيد التنفيذ"))
+            .setNegativeButton("إلغاء", null).show();
+    }
+
+    private void showSpeakerSettings() {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setPadding(dp(20), dp(8), dp(20), dp(8));
+        layout.setOrientation(LinearLayout.VERTICAL);
+        TextView prompt = label("نغمة التنبيه", 14, true);
+        layout.addView(prompt);
+        Button tone = button("تبديل نغمة التنبيه");
+        tone.setOnClickListener(v -> toast("أمر نغمة التنبيه يحتاج اتصال Sinilink BLE"));
+        layout.addView(tone);
+        TextView name = label("اسم السماعة وكلمة المرور", 14, true);
+        name.setPadding(0, dp(12), 0, dp(4));
+        layout.addView(name);
+        TextView note = label("هذه الإعدادات ستُفعّل بعد توصيل DH100 عبر بروتوكول Sinilink.", 12, false);
+        note.setTextColor(muted);
+        layout.addView(note);
+        new AlertDialog.Builder(this).setTitle("إعدادات السماعة").setView(layout)
+            .setPositiveButton("تم", null).show();
     }
 
     private void eq(LinearLayout root, String name) {
